@@ -3,6 +3,7 @@
 import logging
 
 from hfc.fabric.channel.channel import Channel
+from hfc.fabric_network.contract import Contract
 
 consoleHandler = logging.StreamHandler()
 _logger = logging.getLogger(__name__)
@@ -12,11 +13,11 @@ _logger.addHandler(consoleHandler)
 
 
 class Network(object):
-    """
-    A Network represents the set of peers in a Fabric network.
+    """A Network represents the set of peers in a Fabric network.
     Applications should get a Network instance using the
     gateway's getNetwork method.
     """
+
     def __init__(self, gateway, channel):
         """ Construct Network. """
         self.gateway = gateway
@@ -30,6 +31,7 @@ class Network(object):
         """
         Initialize the channel if it hasn't been done
         :param discovery: must include requestor
+        :return:
         """
         if discovery:
             self.discovery_enabled = True
@@ -63,9 +65,20 @@ class Network(object):
     async def _initialize(self, discover=None):
         """
         Initialize this network instance
-        :param discover
+        :param discover:
+        :return:
         """
         if self.initialized:
             return
         await self.__init_internal_channel(discover)
         self.initialized = True
+
+    def get_contract(self, chaincode_id):
+        if not self.initialized:
+            _logger.error("Unable to get contract as network has failed to initialize")
+
+        if chaincode_id not in self.contracts:
+            contract = Contract(self, chaincode_id, self.gateway)
+            self.contracts[chaincode_id] = contract
+
+        return self.contracts[chaincode_id]

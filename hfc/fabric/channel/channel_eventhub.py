@@ -40,6 +40,8 @@ START_AND_END = 3
 
 
 class EventRegistration(object):
+    """A class represents event registration."""
+
     def __init__(self, onEvent=None, unregister=True, disconnect=False):
         self.onEvent = onEvent
         self.unregister = unregister
@@ -47,6 +49,8 @@ class EventRegistration(object):
 
 
 class ChaincodeRegistration(object):
+    """A class represents chaincode registration."""
+
     def __init__(self, ccid, pattern, er, as_array):
         self.uuid = uuid.uuid4().hex
         self.ccid = ccid
@@ -85,8 +89,7 @@ class ChannelEventHub(object):
     @property
     def connected(self):
         """Get the connected
-
-        Return: The connected
+        :return: The connected
         """
         return self._connected
 
@@ -94,8 +97,8 @@ class ChannelEventHub(object):
     def connected(self, connected):
         """Set the connected
 
-        Args:
-            connected: the connected
+        :param connected: the connected
+        :return:
         """
         self._connected = connected
 
@@ -145,8 +148,9 @@ class ChannelEventHub(object):
         return seek_info
 
     def _get_stream(self):
-        """ get the events of the channel.
-        Return: the events in success or None in fail.
+        """get the events of the channel.
+
+        :return: the events in success or None in fail.
         """
         _logger.info("create peer delivery stream")
 
@@ -189,27 +193,24 @@ class ChannelEventHub(object):
     def check_start_stop_connect(self, start=None, stop=None):
         if start is not None or stop is not None:
             if self._start_stop_action:
-                raise Exception('Not able to connect with start/stop'
-                                ' block when a registered listener has'
-                                ' those options.')
+                raise Exception('Not able to connect with start/stop block'
+                                ' when a registered listener has those options.')
 
             if start == 'last_seen':
                 start = self._last_seen
 
             if not ((isinstance(start, int)
-                    or start in ('oldest', 'newest'))
+                     or start in ('oldest', 'newest'))
                     or start is None):
-                raise Exception(f'start value must be: last_seen, oldest,'
-                                f' newest or an integer')
+                raise Exception('start value must be: last_seen, oldest, newest or an integer')
 
             if stop == 'last_seen':
                 stop = self._last_seen
 
             if not ((isinstance(stop, int)
-                    or stop == 'newest')
+                     or stop == 'newest')
                     or stop is None):
-                raise Exception(f'stop value must be: last_seen, newest,'
-                                f' sys.maxsize or an integer')
+                raise Exception('stop value must be: last_seen, newest, sys.maxsize or an integer')
 
             if isinstance(start, int) \
                     and isinstance(stop, int)\
@@ -504,8 +505,8 @@ class ChannelEventHub(object):
 
     def have_registrations(self):
         return self._reg_nums != [] \
-               or self._tx_ids != {} \
-               or self._reg_ids != {}
+            or self._tx_ids != {} \
+            or self._reg_ids != {}
 
     def _on_end_actions(self, event_reg, unregister_action, startstop_mode,
                         unregister, disconnect):

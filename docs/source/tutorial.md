@@ -1,7 +1,5 @@
 # Tutorial of Using Fabric Python SDK
 
-**Note: Python3 is required, and the sample code can be found at [sample.py](sample.py).**
-
 TLDR, run a quick testing.
 
 ```bash
@@ -14,7 +12,7 @@ $ docker-compose -f test/fixtures/docker-compose-2orgs-4peers-tls.yaml up
 $ pip3 install virtualenv; make venv
 $ source venv/bin/activate
 $ make install
-$ python docs/sample.py
+$ tox -e py3 -- test/integration/e2e_test.py # Run specified test case
 $ deactive
 ```
 
@@ -75,8 +73,16 @@ A network connection profile helps SDK connect to the fabric network by providin
 
 * Client credentials file location;
 * Service endpoints for peer, orderer and ca;
+The [network.json](https://github.com/hyperledger/fabric-sdk-py/blob/master/test/fixtures/network.json
+) is an example, please modify the content accordingly.
 
-The [network.json](test/fixtures/network.json) is an example, please modify the content accordingly.
+The user key and cert can be passed to the SDK via the connection profile in three different ways.
+
+| config_parameter | description | when to use |
+|------------------|-------------|-------------|
+| `"cert": {"pem": "base64 encoded cert"}` | The cert or key can be passed in a base64 encoded fashion via the `cert` parameter. | Good for testing and debugging. Should not be used for productive user-cases. |
+| `"private_key": {"path": "/path/to/the/private_key"}` | The path to the cert or can be passed via the `path` parameter. | Standard way for key and cert parameters. |
+| `"cert": "path/to/the/cert"` | The path can be passed directly without an additional `path` attribute. | Same as above, necessary to maintain backwards compatibility. 
 
 Now you can use the Python SDK to work with the fabric network!
 
@@ -376,6 +382,31 @@ response = loop.run_until_complete(cli.chaincode_upgrade(
 
 ```
 
+You can also invoke and query the chaincode through the Gateway
+This has to be done after installing and instantiating the chaincode
+
+```python
+import asyncio
+from hfc.fabric_network.gateway import Gateway
+from hfc.fabric_network.network import Network
+from hfc.fabric_network.contract import Contract
+from hfc.fabric import Client
+
+loop = asyncio.get_event_loop()
+
+cli = Client(net_profile="test/fixtures/network.json")
+org1_admin = cli.get_user(org_name='org1.example.com', name='Admin')
+
+new_gateway = Gateway() # Creates a new gateway instance
+options = {'wallet': ''}
+response = loop.run_until_complete(new_gateway.connect('test/fixtures/network.json', options))
+new_network = loop.run_until_complete(new_gateway.get_network('businesschannel', org1_admin))
+new_contract = new_network.get_contract('example_cc')
+response = loop.run_until_complete(new_contract.submit_transaction('businesschannel', ['a', 'b', '100'], org1_admin))
+response  = loop.run_until_complete(new_contract.evaluate_transaction('businesschannel', ['b'], org1_admin))
+
+```
+
 ## 4. Query Informations
 
 By default, `query` methods returns a decoded response.
@@ -561,6 +592,94 @@ response = loop.run_until_complete(cli.query_peers(
                decode=True
                ))
 ```
+
+
+## 5. Usage of Channel Event Hub
+In this section, we assume a channel named "business" channel is created and no chaincode is installed.
+```python
+import asyncio
+from hfc.fabric import Client
+
+loop = asyncio.get_event_loop()
+
+cli = Client(net_profile="test/fixtures/network.json")
+org1_admin = cli.get_user('org1.example.com', 'Admin')
+
+# Make the client know there is a channel in the network
+cli.new_channel('businesschannel')
+
+# Install Example Chaincode to Peers
+# GOPATH setting is only needed to use the example chaincode inside sdk
+import os
+gopath_bak = os.environ.get('GOPATH', '')
+gopath = os.path.normpath(os.path.join(
+                      os.path.dirname(os.path.realpath('__file__')),
+                      'test/fixtures/chaincode'
+                     ))
+os.environ['GOPATH'] = os.path.abspath(gopath)
+
+# Chaincode information
+CC_PATH = 'github.com/example_cc_with_event'
+CC_NAME = 'example_cc_with_event'
+CC_VERSION = 'v1.0'
+peer = cli.get_peer('peer0.org1.example.com')
+
+# The response should be true if succeed
+responses = loop.run_until_complete(cli.chaincode_install(
+               requestor=org1_admin,
+               peers=['peer0.org1.example.com',
+                      'peer1.org1.example.com'],
+               cc_path=CC_PATH,
+               cc_name=CC_NAME,
+               cc_version='v1.0'
+               ))
+
+# Instantiate the installed chaincode
+args = ['a', '200', 'b', '300']
+
+# policy, see https://hyperledger-fabric.readthedocs.io/en/release-1.4/endorsement-policies.html
+policy = {
+    'identities': [
+        {'role': {'name': 'member', 'mspId': 'Org1MSP'}},
+    ],
+    'policy': {
+        '1-of': [
+            {'signed-by': 0},
+        ]
+    }
+}
+
+response = loop.run_until_complete(cli.chaincode_instantiate(
+               requestor=org1_admin,
+               channel_name='businesschannel',
+               peers=['peer0.org1.example.com'],
+               args=args,
+               cc_name=CC_NAME,
+               cc_version=CC_VERSION,
+               cc_endorsement_policy=policy, # optional, but recommended
+               collections_config=None, # optional, for private data policy
+               transient_map=None, # optional, for private data
+               wait_for_event=True # optional, for being sure chaincode is instantiated
+               ))
+
+def getBlocks(blocks):
+    # On event complition the block is appended to the list of blocks
+    def onEvent(block):
+        blocks.append(block)
+    # Returns an instance of the onEvent function
+    return onEvent
+
+blocks = [] # empty list
+
+channel = cli.get_channel('businesschannel')
+channel_event_hub = channel.newChannelEventHub(peer, org1_admin)
+channel_event_hub.registerBlockEvent(start=0, onEvent=getBlocks(blocks))
+
+stream = channel_event_hub.connect()
+print(blocks)
+```
+
+
 ## License <a name="license"></a>
 
 <a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br />This document is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.

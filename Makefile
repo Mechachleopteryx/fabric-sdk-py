@@ -42,11 +42,11 @@ flake8: linter
 linter:
 	tox -e flake8
 
-PREV_VERSION?=0.9.0
+PREV_VERSION?=1.0.0
 
 # changelog update
 changelog:
-	scripts/changelog.sh v$(PREV_VERSION) HEAD
+	scripts/changelog.sh df19cf5 HEAD v$(PREV_VERSION)
 
 # Generate the hyperledger/fabric-sdk-py image
 image:
@@ -88,7 +88,7 @@ install:
 
 # Auto-format to pep8
 format:
-	$(PYTHON) -m autopep8 --in-place --recursive --exclude=./hfc/protos .
+	$(PYTHON) -m autopep8 --in-place --recursive --exclude=protos,venv .
 
 doc:
 	cd docs && make install html
